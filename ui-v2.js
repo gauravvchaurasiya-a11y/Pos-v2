@@ -38,4 +38,5 @@ window.galGo=function(i){const bg=$('#modals').lastElementChild;const t=bg&&bg.q
 
 })();
 // Keep phone navigation labels complete instead of clipped.
-const uiRender=window.render;window.render=function(){uiRender();if(innerWidth<=820){document.querySelectorAll('.side a').forEach(a=>{const t=a.querySelector('.t');if(!t)return;if(t.textContent==='Previous Bills')t.textContent='Bills';if(t.textContent==='Admin sign-in')t.textContent='Admin';});}};
+const navFix=document.createElement('style');navFix.textContent='@media(max-width:820px){.side nav a{flex:1 0 68px;min-width:68px}.side nav a .t{max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.side .foot nav a{min-width:68px;flex:0 0 auto}.side nav{scrollbar-width:none}.side nav::-webkit-scrollbar{display:none}}';document.head.appendChild(navFix);
+const uiRender=window.render;window.render=function(){uiRender();if(innerWidth<=820){document.querySelectorAll('.side a').forEach(a=>{const t=a.querySelector('.t');if(!t)return;if(t.textContent==='Previous Bills')t.textContent='Bills';if(t.textContent==='Admin sign-in')t.textContent='Admin';if(t.textContent==='Sales History')t.textContent='Sales';});const on=document.querySelector('.side nav a.on');if(on)on.scrollIntoView({block:'nearest',inline:'center'});}};
