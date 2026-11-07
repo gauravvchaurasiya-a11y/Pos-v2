@@ -6,7 +6,7 @@ A separate redesign of the POS interface. This repository does not replace or mo
 
 Cloud-connected separate test shop at https://gauravvchaurasiya-a11y.github.io/Pos-v2/. Uses original product names/photos, test stock of 1,000 per product and dummy customers. Visitors can create and view test bills without a visible login screen. Owner administration uses a POS-only Firebase password or the owner's Google sign-in. It does not connect to the original shop inventory. No backup, real customer history, passwords or private keys are included.
 
-One cancelled setup-verification invoice remains for audit. It was not an actual sale/payment. Test stock was restored after verification.
+Two cancelled setup-verification invoices remain for audit. Neither was an actual sale/payment. Test stock was restored after verification.
 
 The interface has a dark list-based product view, mobile cart sheet, product details, and a gallery with a main image and up to six extra photos. Extra photos are resized to at most 600px and compressed to fit a conservative document budget. Product fields and photos save in one guarded transaction.
 
@@ -26,7 +26,7 @@ The cloud implementation uses Firebase Authentication and Firestore rules, rathe
 
 ## Before connecting any shop
 
-Choose a separate test dataset and namespace/project. Replace all SET_* placeholders, check the namespace in both the client and rules, and verify rules against synthetic data before enabling the connection. Change mode from preview only when the test backend is ready and the remaining limit/password decisions are settled. Enabling a public repository does not make a database public. Billing must stay on the agreed free plan unless separately approved.
+Choose a separate test dataset and namespace/project. For another installation, replace all SET_* placeholders, check the namespace in both the client and rules, and verify rules against synthetic data before enabling the connection. This test shop is connected after completion of those checks. Enabling a public repository does not make a database public. Billing must stay on the agreed free plan unless separately approved.
 
 Do not connect this experimental copy to active inventory. A real-shop migration needs a billing pause on every old device, a fresh full backup, reconciliation of unsynced records, new POS-only admin credentials, and verified update of all billing devices. Keep the old backup and private archive.
 
