@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloud.firestore { match /databases/{db}/documents {
+ function owner(){return request.auth != null && request.auth.uid == 'SET_OWNER_UID';}
+ function authed(){return request.auth != null;}
+ function state(){return /databases/$(db)/documents/livePos/test/control/state;}
+ function invoice(id){return /databases/$(db)/documents/livePos/test/invoiceHeaders/$(id);}
+ function item(id,n){return /databases/$(db)/documents/livePos/test/invoiceHeaders/$(id)/buckets/$(string(n));}
+ match /livePos/test/control/state {
+  allow read: if authed();
+  allow update: if authed() && 
+   getAfter(invoice(request.resource.data.lastSaleId)).data.seq==resource.data.nextSeq &&
+   request.resource.data.nextSeq==resource.data.nextSeq+1 &&
+   request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock','nextSeq','lastSaleId']) &&
+   request.resource.data.stock.diff(resource.data.stock).affectedKeys().hasOnly(getAfter(invoice(request.resource.data.lastSaleId)).data.ids);
+ }
+ match /livePos/test/invoiceHeaders/{id} {
+  allow read: if authed();
+  allow create: if authed() && request.resource.data.keys().hasOnly(['seq','invNo','lines','productNames','customerPct','taxMode','n','buckets','ids','mode','customerId','customer','odType','odVal','subPaise','itemDiscPaise','netPaise','custDiscPaise','extraDiscPaise','orderDiscPaise','taxablePaise','taxPaise','rawPaise','roundOffPaise','grandPaise','receivedPaise','paidPaise','balancePaise','changePaise','method','ref','note','createdAt','creator']) &&
+   request.resource.data.creator==request.auth.uid && request.resource.data.createdAt==request.time &&
+   request.resource.data.buckets is int && request.resource.data.buckets == int((request.resource.data.n+1) / 2) && request.resource.data.n is int && request.resource.data.n>0 && request.resource.data.n<=32 &&
+   request.resource.data.ids is list && request.resource.data.ids.size()==request.resource.data.n && request.resource.data.ids.toSet().size()==request.resource.data.n &&
+   request.resource.data.seq==get(state()).data.nextSeq &&
+   getAfter(state()).data.nextSeq==request.resource.data.seq+1 && getAfter(state()).data.lastSaleId==id &&
+   validHeader(request.resource.data,get(state()).data,getAfter(item(id,request.resource.data.buckets-1)).data) &&
+   getAfter(item(id,request.resource.data.buckets-1)).data.createdAt==request.time;
+  match /buckets/{index} {
+   allow read: if authed();
+   allow create: if authed() && validBucket(request.resource.data,id,index);
+  }
+ }
+
+ function half(n,d){return int((n+d / 2) / d);}
+ function min(a,b){return a<b?a:b;}
+ function validHeader(h,b,x){
+  let c=h.customerId==''?{'discPct':0,'discBp':0}:get(/databases/$(db)/documents/livePos/test/customers/$(h.customerId)).data;
+  let cp=half(h.netPaise*c.discBp,10000);
+  let extra=h.odType=='amt'?min(h.odVal,h.netPaise-cp):half((h.netPaise-cp)*h.odVal,10000);
+  let raw=h.taxablePaise+h.taxPaise;
+  let grand=b.config.roundOff?half(raw,100)*100:raw;
+  let number=b.config.invPrefix+(h.seq<10?'0000':h.seq<100?'000':h.seq<1000?'00':h.seq<10000?'0':'')+string(h.seq);
+  return h.lines is list && h.lines.size()==h.n && h.productNames.keys().hasOnly(h.ids) && h.invNo==number && h.customerPct==c.discPct && h.taxMode==b.config.taxMode && h.mode in ['retail','wholesale'] && h.odType in ['pct','amt'] && h.odVal is int && h.odVal>=0 &&
+   (h.odType=='amt'||h.odVal<=10000) && h.custDiscPaise==cp && h.extraDiscPaise==extra && h.orderDiscPaise==cp+extra &&
+   h.subPaise==x.runSub && h.itemDiscPaise==x.runDisc && h.netPaise==h.subPaise-h.itemDiscPaise &&
+   h.taxablePaise==x.runTaxable && h.taxPaise==x.runTax && h.rawPaise==raw && h.grandPaise==grand && h.roundOffPaise==grand-raw &&
+   h.receivedPaise is int && h.receivedPaise>=0 && h.paidPaise==min(h.receivedPaise,grand) &&
+   h.balancePaise==grand-h.paidPaise && h.changePaise==h.receivedPaise-h.paidPaise && (h.balancePaise==0||h.customerId!='') &&
+   h.method in ['Cash','UPI','Bank Transfer','Credit / Due'] && h.ref is string && h.ref.size()<=200 && h.note is string && h.note.size()<=1000 &&
+   (h.customerId=='' ? h.customer=={} : h.customer==c.profile);
+ }
+ function validLine(l,b,a,h,allocated,index){
+  let p=b.catalog[l.pid];
+  let unit=h.mode=='retail'?p.retailPaise:p.wholesalePaise;
+  let gross=l.qty*unit;
+  let disc=p.discType=='amt'?min(p.discPaise*l.qty,gross):half(gross*p.discBp,10000);
+  let net=gross-disc;
+  let share=min(net,h.netPaise>0?(index==h.n-1?h.orderDiscPaise-allocated:half(h.orderDiscPaise*net,h.netPaise)):0);
+  let taxable=net-share;
+  let tax=half(taxable*(b.config.gstEnabled?p.taxBp:0),10000);
+  return l == {'pid':l.pid,'qty':l.qty,'unitPaise':unit,'grossPaise':gross,'itemDiscPaise':disc,'netPaise':net,'allocationPaise':share,'taxablePaise':taxable,'taxPaise':tax,'totalPaise':taxable+tax} &&
+   l.qty is int && l.qty>0 && p.active==true && h.productNames[l.pid]=={'name':p.name,'sku':p.sku,'taxBp':b.config.gstEnabled?p.taxBp:0} && (h.mode!='wholesale'||l.qty>=p.moq) && a.stock[l.pid]==b.stock[l.pid]-l.qty && a.stock[l.pid]>=0;
+ }
+ function validBucket(x,id,index){
+  let h=getAfter(invoice(id)).data;
+  let b=get(state()).data;
+  let a=getAfter(state()).data;
+  let prev=x.index==0?{'runSub':0,'runDisc':0,'runTaxable':0,'runTax':0,'runAlloc':0,'createdAt':request.time}:getAfter(item(id,x.index-1)).data;
+  return x.keys().hasOnly(['index','items','runSub','runDisc','runTaxable','runTax','runAlloc','createdAt']) &&
+   x.index is int && x.index>=0 && x.index<h.buckets && index==string(x.index) &&
+   h.createdAt==request.time && x.createdAt==request.time && prev.createdAt==request.time &&
+   x.items is list && x.items.size()==(x.index==h.buckets-1?h.n-2*x.index:2) &&
+ (x.items.size()<=0 || (h.ids[x.index*2+0]==x.items[0].pid && h.lines[x.index*2+0]==x.items[0] && validLine(x.items[0],b,a,h,prev.runAlloc,x.index*2+0))) &&
+(x.items.size()<=1 || (h.ids[x.index*2+1]==x.items[1].pid && h.lines[x.index*2+1]==x.items[1] && validLine(x.items[1],b,a,h,prev.runAlloc+x.items[0].allocationPaise,x.index*2+1))) &&
+ x.runSub==prev.runSub+(x.items.size()>0?x.items[0].grossPaise:0)+(x.items.size()>1?x.items[1].grossPaise:0) &&
+x.runDisc==prev.runDisc+(x.items.size()>0?x.items[0].itemDiscPaise:0)+(x.items.size()>1?x.items[1].itemDiscPaise:0) &&
+x.runTaxable==prev.runTaxable+(x.items.size()>0?x.items[0].taxablePaise:0)+(x.items.size()>1?x.items[1].taxablePaise:0) &&
+x.runTax==prev.runTax+(x.items.size()>0?x.items[0].taxPaise:0)+(x.items.size()>1?x.items[1].taxPaise:0) &&
+x.runAlloc==prev.runAlloc+(x.items.size()>0?x.items[0].allocationPaise:0)+(x.items.size()>1?x.items[1].allocationPaise:0);
+ }
+ match /livePos/test/customers/{id} {
+  allow read:if authed();
+  allow create:if authed() && request.resource.data.keys().hasOnly(['profile','discPct','discBp','created']) && request.resource.data.discPct==0 && request.resource.data.discBp==0 && request.resource.data.created is string &&
+    request.resource.data.profile.keys().hasOnly(['name','shop','mobile','gstin','address']) &&
+    request.resource.data.profile.name is string && request.resource.data.profile.name.size()>0 && request.resource.data.profile.name.size()<=200 &&
+    request.resource.data.profile.shop is string && request.resource.data.profile.shop.size()<=200 &&
+    request.resource.data.profile.mobile is string && request.resource.data.profile.mobile.size()<=30 &&
+    request.resource.data.profile.gstin is string && request.resource.data.profile.gstin.size()<=30 &&
+    request.resource.data.profile.address is string && request.resource.data.profile.address.size()<=1000;
+ }
+ match /livePos/test/{kind}/{id} {allow read:if authed() && kind in ['products','categories','legacySales','saleEdits','movements'];}
+ match /livePos/test/{path=**} {allow read,write:if owner();}
+ match /shops/main/{path=**} {allow read:if owner();}
+ match /{path=**} {allow read,write:if false;}
+}}

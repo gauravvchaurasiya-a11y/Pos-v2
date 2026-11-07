@@ -1,0 +1,8 @@
+{
+  "name": "Festival POS v2 Candidate",
+  "short_name": "POS v2",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#111216",
+  "theme_color": "#ef4f5f"
+}
