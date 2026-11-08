@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Shop - Products &amp; Prices</title>
+<title>Shop (TEST) - Products &amp; Prices</title>
 <style>
 :root{--bg:#111216;--s1:#1a1b21;--s2:#23242b;--line:#2a2b33;--text:#f2f2f4;--muted:#9c9da7;--coral:#ef4f5f;--green:#2fbf71;--r:16px}
 *{box-sizing:border-box;margin:0}
@@ -56,7 +56,7 @@ input.f:focus,textarea.f:focus{outline:none;border-color:var(--coral)}
 <body>
 <header>
 <h1 id="shopName">Our Products</h1>
-<p id="shopSub">Browse and order at retail prices</p>
+<p id="shopSub">Browse and order at retail prices</p><p style="font-size:12px;font-weight:700;color:#f5a524;margin-top:4px;letter-spacing:.04em">TEST PROTOTYPE - NOT A LIVE SHOP YET</p>
 <input class="search" id="q" type="search" placeholder="Search products..." autocomplete="off">
 </header>
 <div class="grid" id="grid"><div class="empty">Loading products...</div></div>
@@ -77,7 +77,7 @@ input.f:focus,textarea.f:focus{outline:none;border-color:var(--coral)}
 <label for="ca">Address (optional)</label><textarea class="f" id="ca" rows="2" maxlength="1000" autocomplete="street-address"></textarea>
 <label for="cn2">Note (optional)</label><input class="f" id="cn2" maxlength="500">
 <button class="btn" id="placeBtn">Place order</button>
-<p class="note">No online payment - pay at the shop or on delivery. We will call you to confirm your order.</p>
+<p class="note">TEST PROTOTYPE - orders placed here are recorded for testing only and will not be fulfilled.</p>
 </div>
 </div></div>
 
@@ -86,7 +86,7 @@ input.f:focus,textarea.f:focus{outline:none;border-color:var(--coral)}
 <h2 style="justify-content:center">Order placed</h2>
 <p style="color:var(--muted);margin:10px 0 4px">Your order reference</p>
 <p style="font-size:24px;font-weight:800" id="orderRef"></p>
-<p style="color:var(--muted);margin-top:10px">We will call you to confirm. Pay at the shop or on delivery.</p>
+<p style="color:var(--muted);margin-top:10px">Prototype only - this test order was recorded, nothing will be delivered.</p>
 <button class="btn" onclick="location.reload()">Continue shopping</button>
 </div></div></div>
 
