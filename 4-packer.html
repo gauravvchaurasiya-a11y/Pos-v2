@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Packing queue</title>
+<style>
+:root{--bg:#111216;--s1:#1a1b21;--s2:#23242b;--line:#2a2b33;--text:#f2f2f4;--muted:#9c9da7;--coral:#ef4f5f;--green:#2fbf71;--r:16px}
+*{box-sizing:border-box;margin:0}
+body{font:16px/1.5 system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text)}
+header{position:sticky;top:0;z-index:5;background:rgba(17,18,22,.95);border-bottom:1px solid var(--line);padding:14px 16px;display:flex;justify-content:space-between;align-items:center}
+header h1{font-size:18px;font-weight:800}
+header .cnt{font-size:13px;color:var(--muted)}
+.wrap{max-width:760px;margin:0 auto;padding:16px}
+.card{background:var(--s1);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;margin-bottom:12px}
+.card.urgent{border-color:var(--coral)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.nm{font-weight:800;font-size:17px}
+.meta{font-size:13px;color:var(--muted)}
+.items{margin:12px 0}
+.it{display:flex;align-items:center;gap:12px;padding:10px;border:1px solid var(--line);border-radius:12px;margin-bottom:8px;cursor:pointer;font-size:16px}
+.it.done{opacity:.45;text-decoration:line-through}
+.it .box{width:24px;height:24px;border-radius:7px;border:2px solid var(--muted);flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px}
+.it.done .box{background:var(--green);border-color:var(--green)}
+.it .q{margin-left:auto;font-weight:800;font-size:18px;white-space:nowrap}
+.btn{border:0;border-radius:10px;padding:11px 16px;font:inherit;font-weight:800;cursor:pointer;background:var(--s2);color:var(--text)}
+.btn.p{background:var(--coral);color:#fff;width:100%;padding:14px;font-size:16px}
+label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+input.f{width:100%;padding:11px 14px;border-radius:12px;border:1px solid var(--line);background:var(--s2);color:var(--text);font:inherit}
+.empty{color:var(--muted);text-align:center;padding:40px 0}
+.signin{max-width:380px;margin:60px auto;background:var(--s1);border:1px solid var(--line);border-radius:var(--r);padding:22px}
+.err{color:var(--coral);font-size:13px;margin-top:8px}
+h3{font-size:14px;color:var(--muted);margin:18px 0 8px;text-transform:uppercase;letter-spacing:.05em}
+</style>
+</head>
+<body>
+<header><h1>Packing queue</h1><span class="cnt" id="cnt"></span><button class="btn" id="out" hidden>Sign out</button></header>
+<div class="signin" id="signin">
+<h2 style="font-size:17px;margin-bottom:6px">Packer sign-in</h2>
+<p class="meta">Sign in to see orders to pack.</p>
+<label>Email</label><input class="f" id="em" type="email" autocomplete="email">
+<label>Password</label><input class="f" id="pw" type="password" autocomplete="current-password">
+<div class="row" style="margin-top:14px">
+<button class="btn" id="google">Google sign-in</button>
+<button class="btn p" id="go" style="width:auto">Sign in</button>
+</div>
+<div class="err" id="authErr"></div>
+</div>
+<div class="wrap" id="list" hidden></div>
+<script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
+<script>
+'use strict';
+const CFG={apiKey:'AIzaSyDtplfGP-AmlVzSzu5Lzxjztnc6MB34Fq4',authDomain:'shree-festival-pos.firebaseapp.com',projectId:'shree-festival-pos',appId:'1:552632077785:web:68453eff10fff605401dc8'};
+const OWNER='77PHL79szXWqP5VaD8X1YovPujp2';
+// Additional packer account UIDs can be allowed here and in Firestore rules once created.
+const PACKERS=[OWNER];
+const ROOT='livePos/test';
+const app=firebase.initializeApp(CFG,'packer-queue'),auth=app.auth(),db=app.firestore();
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+$('#google').onclick=()=>auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>$('#authErr').textContent=e.message);
+$('#go').onclick=()=>auth.signInWithEmailAndPassword($('#em').value,$('#pw').value).catch(e=>$('#authErr').textContent=e.message);
+$('#out').onclick=()=>auth.signOut();
+const checked={};
+try{Object.assign(checked,JSON.parse(localStorage.getItem('packChecked')||'{}'))}catch(e){}
+function saveChecked(){try{localStorage.setItem('packChecked',JSON.stringify(checked))}catch(e){}}
+let knownIds=null;
+function beep(){try{const c=new (window.AudioContext||window.webkitAudioContext)();const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.15;o.start();setTimeout(()=>{o.frequency.value=1320},150);setTimeout(()=>{o.stop();c.close()},400)}catch(e){}}
+let stop=null;
+auth.onAuthStateChanged(u=>{
+ const ok=u&&PACKERS.includes(u.uid);
+ $('#signin').hidden=!!ok;$('#list').hidden=!ok;$('#out').hidden=!ok;
+ if(u&&!ok)$('#authErr').textContent='This account is not allowed to view the packing queue.';
+ if(stop){stop();stop=null}
+ if(ok)start();
+});
+function start(){
+ stop=db.collection(ROOT+'/customerOrders').orderBy('createdAt','desc').limit(100)
+ .onSnapshot(snap=>{
+  const docs=snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.status==='new'||d.status==='packed').reverse();
+  const ids=docs.map(d=>d.id);
+  if(knownIds!==null&&ids.some(id=>!knownIds.includes(id)&&docs.find(d=>d.id===id).status==='new'))beep();
+  knownIds=ids;
+  const fresh=docs.filter(d=>d.status==='new'),packed=docs.filter(d=>d.status==='packed');
+  $('#cnt').textContent=fresh.length+' to pack';
+  const card=(o)=>{
+   const when=o.createdAt?new Date(o.createdAt.toMillis()).toLocaleString('en-IN',{hour:'numeric',minute:'2-digit',day:'numeric',month:'short'}):'just now';
+   const items=(o.items||[]).map((i,ix)=>{
+    const k=o.id+':'+ix,on=!!checked[k];
+    return `<div class="it ${on?'done':''}" onclick="toggleItem('${k}',this)"><span class="box">${on?'✓':''}</span><span>${esc(i.name)}</span><span class="q">× ${i.qty}</span></div>`;
+   }).join('');
+   const allChecked=(o.items||[]).every((_,ix)=>checked[o.id+':'+ix])&&(o.items||[]).length>0;
+   return `<div class="card ${o.status==='new'?'urgent':''}">
+    <div class="row"><span class="nm">#${esc(o.id.slice(-6).toUpperCase())} · ${esc(o.name)}</span><span class="meta">${when}</span></div>
+    ${o.note?`<div class="meta">Note: ${esc(o.note)}</div>`:''}
+    <div class="items">${items}</div>
+    ${o.status==='new'?`<button class="btn p" ${allChecked?'':'style="opacity:.6"'} onclick="pack('${o.id}')">${allChecked?'Order packed ✓':'Mark as packed'}</button>`:'<div class="meta" style="text-align:center">Packed - waiting for completion</div>'}
+   </div>`;
+  };
+  $('#list').innerHTML=(fresh.length||packed.length)?
+   (fresh.length?'<h3>To pack</h3>'+fresh.map(card).join(''):'')+(packed.length?'<h3>Packed</h3>'+packed.map(card).join(''):'')
+   :'<div class="empty">No orders waiting. New orders appear here automatically.</div>';
+ },err=>{$('#list').innerHTML='<div class="empty">Could not load orders: '+esc(err.message)+'</div>'});
+}
+window.toggleItem=(k,el)=>{checked[k]=!checked[k];if(!checked[k])delete checked[k];saveChecked();
+ const on=!!checked[k];el.classList.toggle('done',on);el.querySelector('.box').textContent=on?'✓':'';
+};
+window.pack=async(id)=>{try{Object.keys(checked).forEach(k=>{if(k.startsWith(id+':'))delete checked[k]});saveChecked();await db.doc(ROOT+'/customerOrders/'+id).update({status:'packed'})}catch(e){alert(e.message)}};
+</script>
+</body>
+</html>

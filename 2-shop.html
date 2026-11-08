@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shop - Products &amp; Prices</title>
+<style>
+:root{--bg:#111216;--s1:#1a1b21;--s2:#23242b;--line:#2a2b33;--text:#f2f2f4;--muted:#9c9da7;--coral:#ef4f5f;--green:#2fbf71;--r:16px}
+*{box-sizing:border-box;margin:0}
+body{font:16px/1.5 system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);padding-bottom:96px}
+header{position:sticky;top:0;z-index:5;background:rgba(17,18,22,.95);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:14px 16px}
+header h1{font-size:19px;font-weight:800}
+header p{font-size:13px;color:var(--muted)}
+.search{width:100%;margin-top:10px;padding:11px 14px;border-radius:12px;border:1px solid var(--line);background:var(--s1);color:var(--text);font:inherit}
+.search:focus{outline:none;border-color:var(--coral)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;padding:14px 16px;max-width:1000px;margin:0 auto}
+.card{background:var(--s1);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;cursor:pointer;display:flex;flex-direction:column}
+.card .im{aspect-ratio:1;background:var(--s2);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.card .im img{width:100%;height:100%;object-fit:cover}
+.card .im .tl{font-size:34px;font-weight:800;color:#fff;width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.card .bd{padding:10px 12px 12px;display:flex;flex-direction:column;gap:6px;flex:1}
+.card .nm{font-size:14px;font-weight:600;line-height:1.35;flex:1}
+.card .pr{font-size:16px;font-weight:800;color:var(--coral)}
+.addb{border:1px solid var(--coral);background:transparent;color:var(--coral);border-radius:10px;padding:7px 0;font:inherit;font-weight:700;cursor:pointer;width:100%}
+.addb.in{background:var(--coral);color:#fff}
+.cartbar{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:6;background:var(--coral);color:#fff;border:0;border-radius:14px;padding:14px 18px;font:inherit;font-weight:700;display:flex;justify-content:space-between;align-items:center;cursor:pointer;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+.sheet{position:fixed;inset:0;z-index:10;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center}
+.sheet .in{background:var(--s1);border-radius:20px 20px 0 0;width:100%;max-width:640px;max-height:88vh;overflow:auto;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+.sheet h2{font-size:17px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.x{border:0;background:transparent;color:var(--muted);font-size:26px;cursor:pointer;line-height:1}
+.cl{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.cl .n{font-size:14px;flex:1}
+.cl .p{font-size:14px;font-weight:700;white-space:nowrap}
+.stp{display:flex;align-items:center;gap:10px}
+.stp button{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--s2);color:var(--text);font-size:17px;cursor:pointer}
+.tot{display:flex;justify-content:space-between;font-size:17px;font-weight:800;padding:14px 0}
+label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+input.f,textarea.f{width:100%;padding:11px 14px;border-radius:12px;border:1px solid var(--line);background:var(--s2);color:var(--text);font:inherit}
+input.f:focus,textarea.f:focus{outline:none;border-color:var(--coral)}
+.btn{width:100%;margin-top:16px;padding:14px;border:0;border-radius:12px;background:var(--coral);color:#fff;font:inherit;font-weight:800;cursor:pointer}
+.btn:disabled{opacity:.5}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text);font-weight:600}
+.note{font-size:12px;color:var(--muted);margin-top:10px;text-align:center}
+.ok{text-align:center;padding:40px 20px}
+.ok .tick{width:64px;height:64px;border-radius:50%;background:var(--green);color:#fff;font-size:32px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
+.empty{color:var(--muted);text-align:center;padding:40px 0;grid-column:1/-1}
+.pm{position:fixed;inset:0;z-index:9;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;padding:20px}
+.pm .in{background:var(--s1);border-radius:20px;max-width:480px;width:100%;max-height:88vh;overflow:auto;padding:16px}
+.pm img{width:100%;border-radius:12px;background:var(--s2)}
+.pm .nm{font-size:18px;font-weight:800;margin:12px 0 4px}
+.pm .pr{font-size:20px;font-weight:800;color:var(--coral);margin-bottom:12px}
+.pm .ds{font-size:14px;color:var(--muted);margin-bottom:12px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header>
+<h1 id="shopName">Our Products</h1>
+<p id="shopSub">Browse and order at retail prices</p>
+<input class="search" id="q" type="search" placeholder="Search products..." autocomplete="off">
+</header>
+<div class="grid" id="grid"><div class="empty">Loading products...</div></div>
+<button class="cartbar" id="cartBar" hidden><span id="cbCount"></span><span id="cbTotal"></span></button>
+
+<div class="pm" id="pmodal" hidden><div class="in">
+<div style="display:flex;justify-content:flex-end"><button class="x" onclick="closePm()" aria-label="Close">×</button></div>
+<div id="pmBody"></div>
+</div></div>
+
+<div class="sheet" id="cartSheet" hidden><div class="in">
+<h2>Your order <button class="x" onclick="closeCart()" aria-label="Close">×</button></h2>
+<div id="cartLines"></div>
+<div class="tot"><span>Total</span><span id="cartTotal"></span></div>
+<div id="coForm">
+<label for="cn">Your name *</label><input class="f" id="cn" maxlength="200" autocomplete="name">
+<label for="cp">Phone number *</label><input class="f" id="cp" inputmode="tel" maxlength="30" autocomplete="tel">
+<label for="ca">Address (optional)</label><textarea class="f" id="ca" rows="2" maxlength="1000" autocomplete="street-address"></textarea>
+<label for="cn2">Note (optional)</label><input class="f" id="cn2" maxlength="500">
+<button class="btn" id="placeBtn">Place order</button>
+<p class="note">No online payment - pay at the shop or on delivery. We will call you to confirm your order.</p>
+</div>
+</div></div>
+
+<div class="sheet" id="doneSheet" hidden><div class="in"><div class="ok">
+<div class="tick">✓</div>
+<h2 style="justify-content:center">Order placed</h2>
+<p style="color:var(--muted);margin:10px 0 4px">Your order reference</p>
+<p style="font-size:24px;font-weight:800" id="orderRef"></p>
+<p style="color:var(--muted);margin-top:10px">We will call you to confirm. Pay at the shop or on delivery.</p>
+<button class="btn" onclick="location.reload()">Continue shopping</button>
+</div></div></div>
+
+<script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
+<script>
+'use strict';
+const CFG={apiKey:'AIzaSyDtplfGP-AmlVzSzu5Lzxjztnc6MB34Fq4',authDomain:'shree-festival-pos.firebaseapp.com',projectId:'shree-festival-pos',appId:'1:552632077785:web:68453eff10fff605401dc8'};
+const ROOT='livePos/test';
+const app=firebase.initializeApp(CFG,'customer-shop'),auth=app.auth(),db=app.firestore();
+auth.signInAnonymously().catch(()=>{});
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>'₹'+(Number.isInteger(n)?n.toLocaleString('en-IN'):n.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}));
+const initials=n=>n.split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
+const tileColor=n=>{const c=['#7c3aed','#2563eb','#0891b2','#16a34a','#ca8a04','#dc2626','#db2777'];let h=0;for(const ch of n)h=(h*31+ch.charCodeAt(0))>>>0;return c[h%c.length]};
+let products=[],cart={};
+try{cart=JSON.parse(localStorage.getItem('shopCart')||'{}')}catch(e){cart={}}
+function saveCart(){try{localStorage.setItem('shopCart',JSON.stringify(cart))}catch(e){}}
+function byId(id){return products.find(p=>p.id===id)}
+function cartList(){return Object.entries(cart).map(([id,qty])=>({p:byId(id),qty})).filter(x=>x.p&&x.qty>0)}
+function cartTotal(){return cartList().reduce((s,x)=>s+x.p.price*x.qty,0)}
+function cartQty(){return cartList().reduce((s,x)=>s+x.qty,0)}
+function renderGrid(){
+ const q=($('#q').value||'').trim().toLowerCase();
+ const list=products.filter(p=>!q||p.name.toLowerCase().includes(q)||(p.sku||'').toLowerCase().includes(q));
+ $('#grid').innerHTML=list.length?list.map(p=>{
+  const inCart=(cart[p.id]||0)>0;
+  return `<div class="card" data-pid="${esc(p.id)}">
+   <div class="im" onclick="openPm('${esc(p.id)}')">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" decoding="async">`:`<span class="tl" style="background:${tileColor(p.name)}">${esc(initials(p.name))}</span>`}</div>
+   <div class="bd">
+    <div class="nm" onclick="openPm('${esc(p.id)}')">${esc(p.name)}</div>
+    <div class="pr">${money(p.price)}</div>
+    <button class="addb ${inCart?'in':''}" data-add="${esc(p.id)}">${inCart?'In cart · '+cart[p.id]:'Add to order'}</button>
+   </div></div>`;
+ }).join(''):`<div class="empty">No products found${q?' for "'+esc(q)+'"':''}</div>`;
+ document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{addToCart(b.dataset.add)});
+ updateBar();
+}
+function updateBar(){
+ const n=cartQty();
+ $('#cartBar').hidden=n===0;
+ $('#cbCount').textContent=n+' item'+(n>1?'s':'');
+ $('#cbTotal').textContent=money(cartTotal())+' · Review order ›';
+}
+function addToCart(id){cart[id]=(cart[id]||0)+1;saveCart();renderGrid();openCart();}
+function setQty(id,q){if(q<=0)delete cart[id];else cart[id]=Math.min(q,999);saveCart();renderCart();renderGrid();}
+function renderCart(){
+ const list=cartList();
+ $('#cartLines').innerHTML=list.length?list.map(({p,qty})=>`
+  <div class="cl"><div class="n">${esc(p.name)}</div>
+  <div class="stp"><button onclick="setQty('${esc(p.id)}',${qty-1})">−</button><span>${qty}</span><button onclick="setQty('${esc(p.id)}',${qty+1})">+</button></div>
+  <div class="p">${money(p.price*qty)}</div></div>`).join(''):'<div class="empty">Your order is empty.</div>';
+ $('#cartTotal').textContent=money(cartTotal());
+ $('#placeBtn').disabled=!list.length;
+}
+function openCart(){renderCart();$('#cartSheet').hidden=false}
+function closeCart(){$('#cartSheet').hidden=true}
+function openPm(id){
+ const p=byId(id);if(!p)return;
+ $('#pmBody').innerHTML=`${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}">`:''}
+  <div class="nm">${esc(p.name)}</div><div class="pr">${money(p.price)}</div>
+  ${p.desc?`<div class="ds">${esc(p.desc)}</div>`:''}
+  <button class="addb ${(cart[p.id]||0)>0?'in':''}" onclick="addToCart('${esc(p.id)}');closePm()">${(cart[p.id]||0)>0?'In cart · '+cart[p.id]:'Add to order'}</button>`;
+ $('#pmodal').hidden=false;
+}
+function closePm(){$('#pmodal').hidden=true}
+$('#cartBar').onclick=openCart;
+$('#q').oninput=renderGrid;
+$('#pmodal').onclick=e=>{if(e.target.id==='pmodal')closePm()};
+$('#cartSheet').onclick=e=>{if(e.target.id==='cartSheet')closeCart()};
+$('#placeBtn').onclick=async()=>{
+ const list=cartList();if(!list.length)return;
+ const name=$('#cn').value.trim(),phone=$('#cp').value.trim(),address=$('#ca').value.trim(),note=$('#cn2').value.trim();
+ if(!name)return alert('Please enter your name.');
+ if(phone.replace(/\D/g,'').length<6)return alert('Please enter a valid phone number.');
+ const btn=$('#placeBtn');btn.disabled=true;btn.textContent='Placing order...';
+ try{
+  if(!auth.currentUser)await auth.signInAnonymously();
+  const total=Math.round(cartTotal()*100);
+  const ref=await db.collection(ROOT+'/customerOrders').add({
+   name,phone,address,note,
+   items:list.map(({p,qty})=>({pid:p.id,name:p.name,qty,pricePaise:Math.round(p.price*100)})),
+   totalPaise:total,status:'new',source:'customer-page',
+   createdAt:firebase.firestore.FieldValue.serverTimestamp()
+  });
+  cart={};saveCart();
+  closeCart();
+  $('#orderRef').textContent='#'+ref.id.slice(-6).toUpperCase();
+  $('#doneSheet').hidden=false;
+ }catch(e){
+  alert('Could not place the order: '+e.message+'\nPlease try again.');
+ }finally{btn.disabled=false;btn.textContent='Place order';}
+};
+fetch('./catalog.json').then(r=>{if(!r.ok)throw Error('load failed');return r.json()}).then(d=>{
+ products=(d.products||[]).filter(p=>p&&p.name&&p.price!=null);
+ renderGrid();
+}).catch(()=>{$('#grid').innerHTML='<div class="empty">Could not load the product list. Please check your internet and reload.</div>'});
+</script>
+</body>
+</html>
