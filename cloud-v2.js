@@ -29,9 +29,9 @@ async function refreshLive(attempt=0){
  const endState=(await stateRef().get({source:'server'})).data();if(!equal(freshState,endState)){if(attempt>=3)throw Error('Shop is changing quickly. Refresh again before editing.');return refreshLive(attempt+1);}liveState=endState;
  const sales=new Map(data.legacySales.map(x=>[x.id,x]));for(const h of data.invoiceHeaders)sales.set(h.id,headerSale(h.id,h));for(const e of data.saleEdits)sales.set(e.id,e.sale);
  S={settings:{...liveState.config,adminPass:'',cashierPin:''},products:data.products.map(p=>({...p,stock:liveState.stock[p.id]??0})),categories:data.categories,customers:data.customers.map(c=>({id:c.id,discPct:c.discPct,created:c.created,...c.profile})),sales:[...sales.values()],movements:data.movements};normalize();S.settings.adminPass='';S.settings.cashierPin='';S.settings.invSeq=liveState.nextSeq;cloudBase=clone(S);cloudReady=true;localSave();
- role=isOwner()?'admin':'cashier';if(!NAV[role].some(n=>n[0]===page))page=role==='admin'?'dashboard':'pos';sessionStorage.setItem('wpos_v2_test_role',role);$('#login').hidden=true;$('#app').hidden=false;renderNav();render();if(!listening){subscribeLive();listening=true;}
+ role=isOwner()?'admin':'cashier';if(!NAV[role].some(n=>n[0]===page))page=role==='admin'?'dashboard':'pos';sessionStorage.setItem('wpos_v2_test_role',role);$('#login').hidden=true;$('#app').hidden=false;clearTimeout(connectRetryTimer);clearTimeout(connectWatchdog);clearTimeout(connectHintTimer);sessionStorage.removeItem('wpos_v2_test_conn_reloads');connectAttempts=0;renderNav();render();if(!listening){subscribeLive();listening=true;}
 }
-function queuePull(){pullQueue=pullQueue.then(refreshLive).catch(e=>toast(e.message,'err'));return pullQueue;}
+function queuePull(){pullQueue=pullQueue.then(refreshLive).catch(e=>{if(!$('#login').hidden)scheduleConnectRetry(e&&e.message);else toast(e.message,'err');});return pullQueue;}
 let snapshotTimer=null;
 function subscribeLive(){stops.forEach(f=>f());stops=[];
  const changed=()=>{clearTimeout(snapshotTimer);snapshotTimer=setTimeout(()=>{if(!saving)queuePull();else pendingRefresh=true;},150);};
@@ -85,14 +85,37 @@ window.commitSale=async function(method,recvRaw,ref,note,btn,shownGrand){
 };
 function connectStatus(text){$('#lgBiz').textContent=text;}
 const originalRender=window.render;window.render=function(){originalRender();if(POS_CONFIG.testOnly&&!document.querySelector('#testCloudBanner')){const b=document.createElement('div');b.id='testCloudBanner';b.textContent='TEST SHOP - separate stock, not the live shop';b.style.cssText='padding:9px 12px;background:#33270e;color:#fcc04d;text-align:center;font-size:12px';document.querySelector('.main').prepend(b);}const foot=document.querySelector('.side .foot a');if(foot){foot.innerHTML='<span class="ic">'+(isOwner()?'↪':'⚙')+'</span><span class="t">'+(isOwner()?'Sign out':'Admin sign-in')+'</span>';foot.title=isOwner()?'Sign out':'Admin sign-in';}if(page==='settings'){for(const id of ['sPass','sPass2','sPin','sSeq']){const x=document.getElementById(id);if(x){x.disabled=true;x.value=id==='sSeq'?liveState.nextSeq:'';x.placeholder=id==='sSeq'?'Server controlled':'Managed by cloud authentication';}}}};
+let connectRetryTimer=null,connectWatchdog=null,connectHintTimer=null,connectAttempts=0;
+function scheduleConnectRetry(reason){
+ if(!$('#login')||$('#login').hidden)return;
+ connectAttempts++;const delay=Math.min(30000,4000*connectAttempts+1000);
+ connectStatus((reason?('Could not connect: '+reason+' '):'')+'Retrying automatically in '+Math.round(delay/1000)+'s...');
+ clearTimeout(connectRetryTimer);
+ connectRetryTimer=setTimeout(()=>{if(!$('#login').hidden)queuePull();},delay);
+}
+function armConnectWatchdog(){
+ clearTimeout(connectHintTimer);clearTimeout(connectWatchdog);
+ connectHintTimer=setTimeout(()=>{if(!$('#login').hidden&&$('#lgBiz').textContent==='Connecting to live shop...')connectStatus('Still connecting - the network is slow. Shop data is loading...');},15000);
+ connectWatchdog=setTimeout(()=>{
+  if(!$('#login').hidden){
+   let n=0;try{n=Number(sessionStorage.getItem('wpos_v2_test_conn_reloads')||0);}catch(e){}
+   if(n<2){try{sessionStorage.setItem('wpos_v2_test_conn_reloads',String(n+1));}catch(e){}location.reload();}
+   else connectStatus('Still unable to connect. Check your internet, then tap Retry connection.');
+  }
+ },45000);
+}
 async function liveInit(){
+ try{
  if(POS_CONFIG.mode==='preview'){await startPreview();return;}
  if(!POS_CONFIG.enabled){$('#app').hidden=true;$('#login').hidden=false;document.querySelector('#login .card').innerHTML='<div class="logo-mark">₹</div><h2>POS v2 candidate</h2><p>This separate version is not connected to a shop yet.</p><p>Live billing is disabled. Your existing POS and records are unchanged.</p>';return;}
+ armConnectWatchdog();
  // Preserve the old local copy under a new recovery key before reading the live schema.
  if(!localStorage.getItem('wpos_v2_test_pre_live_backup'))localStorage.setItem('wpos_v2_test_pre_live_backup',localStorage.getItem(KEY)||'');
  const app=firebase.initializeApp(FIREBASE_CONFIG,'pos-v2-test');FB.auth=app.auth();FB.db=app.firestore();FB.ready=true;
- FB.auth.onAuthStateChanged(async u=>{FB.user=u;cloudReady=false;stops.forEach(f=>f());stops=[];listening=false;if(!u){role=null;$('#app').hidden=true;$('#login').hidden=false;try{await FB.auth.signInAnonymously();}catch(e){connectStatus('Unable to connect: '+e.message);}return;}try{await queuePull();if(cloudReady&&!listening){subscribeLive();listening=true;}}catch(e){connectStatus(e.message);}});
+ FB.auth.onAuthStateChanged(async u=>{FB.user=u;cloudReady=false;stops.forEach(f=>f());stops=[];listening=false;if(!u){role=null;$('#app').hidden=true;$('#login').hidden=false;try{await FB.auth.signInAnonymously();}catch(e){scheduleConnectRetry(e&&e.message);}return;}try{await queuePull();if(cloudReady&&!listening){subscribeLive();listening=true;}}catch(e){scheduleConnectRetry(e&&e.message);}});
+ }catch(e){try{connectStatus('Unable to start: '+((e&&e.message)||e)+' Please tap Retry connection.');}catch(_){ }}
 }
+window.addEventListener('online',()=>{try{if($('#login')&&!$('#login').hidden){clearTimeout(connectRetryTimer);connectAttempts=0;queuePull();}}catch(e){}});
 const mobileInvoice=window.showInvoice;window.showInvoice=function(id,dup){if(window.innerWidth<600)invFmt='rc';return mobileInvoice(id,dup);};
 const style=document.createElement('style');style.textContent='.modal-bg{padding:12px}.modal{max-height:calc(100dvh - 24px);display:flex;flex-direction:column}.modal-h,.modal-f{flex-shrink:0}.modal-b{overflow:auto}.inv-prev{overflow:auto}@media(max-width:600px){.modal-b{padding:12px}.inv.rc{width:100%;max-width:100%;padding:10px}.inv.rc table{width:100%;table-layout:fixed}.inv.rc th,.inv.rc td{padding:2px 3px;overflow-wrap:anywhere}.inv.rc table:has(th:nth-child(4)) th:first-child{width:37%}.inv.rc table:has(th:nth-child(4)) th:nth-child(2){width:13%}.inv.rc table:has(th:nth-child(4)) th:nth-child(3),.inv.rc table:has(th:nth-child(4)) th:nth-child(4){width:25%}.inv.rc table:not(:has(th:nth-child(4))) td:first-child{width:70%}.modal-f .btn{flex:1;font-size:12px}}';document.head.appendChild(style);
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',liveInit);else liveInit();
